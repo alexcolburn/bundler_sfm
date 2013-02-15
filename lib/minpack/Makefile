@@ -8,8 +8,8 @@ OBJS=dpmpar.o \
 	qrsolv.o
 
 AR=ar
-FC=gcc
-FFLAGS=-O2 -ffast-math
+FC=gfortran
+FFLAGS=-O2 -ffast-math -arch x86_64
 
 all: libminpack.a
 
