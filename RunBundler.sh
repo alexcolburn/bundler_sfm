@@ -62,14 +62,29 @@ rm -f sift.txt
 $TO_SIFT $IMAGE_DIR > sift.txt 
 
 # Execute the SIFT commands
-sh sift.txt
+SIFT_COUNT=`ls -l *.key.gz | wc -l` 
+echo sift count is $SIFT_COUNT
+
+if [ $SIFT_COUNT -eq 0 ]
+then
+	sh sift.txt
+else
+	echo "SIFT Files detected skipping...."
+fi
 
 # Match images (can take a while)
 echo "[- Matching keypoints (this can take a while) -]"
 sed 's/\.jpg$/\.key/' list_tmp.txt > list_keys.txt
 sleep 1
-echo $MATCHKEYS list_keys.txt matches.init.txt
-$MATCHKEYS list_keys.txt matches.init.txt
+
+MATCH_COUNT=`ls -l matches.init.txt | wc -l` 
+echo Matching count is $MATCH_COUNT
+
+if [ $MATCH_COUNT -eq 0 ]
+then
+	echo $MATCHKEYS list_keys.txt matches.init.txt
+	$MATCHKEYS list_keys.txt matches.init.txt
+fi
 
 # Generate the options file for running bundler 
 mkdir bundle
@@ -81,15 +96,36 @@ echo "--output_all bundle_" >> options.txt
 echo "--output_dir bundle" >> options.txt
 echo "--variable_focal_length" >> options.txt
 echo "--use_focal_estimate" >> options.txt
-echo "--constrain_focal" >> options.txt
-echo "--constrain_focal_weight 0.0001" >> options.txt
+#echo "--constrain_focal" >> options.txt
+#echo "--constrain_focal_weight 0.0001" >> options.txt
 echo "--estimate_distortion" >> options.txt
+echo "--init_pair1 0"
+echo "--init_pair2 1"
 echo "--run_bundle" >> options.txt
+
+awk '{ print $1 " 1 " $3 }' list.txt > list1.txt
 
 # Run Bundler!
 echo "[- Running Bundler -]"
 rm -f constraints.txt
 rm -f pairwise_scores.txt
 $BUNDLER list.txt --options_file options.txt > bundle/out
+
+echo "[- Done -]"
+
+rm -r ./pmvs
+
+Bundle2PMVS list.txt bundle/bundle.out
+
+mkdir pmvs
+
+echo "Bundle2PMVS $1 $2"
+
+sh pmvs/prep_pmvs.sh
+
+cd pmvs
+~/pmvs3/matchp-64 ./ pmvs_options.txt
+cd ..
+
 
 echo "[- Done -]"
