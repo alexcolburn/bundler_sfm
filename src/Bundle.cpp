@@ -232,7 +232,9 @@ void InitializeCameraParams(const ImageData &data, camera_params_t &camera)
         camera.weights[i] = 0.0;
     }
 
-    camera.fisheye = data.m_fisheye;
+    camera.m_bFisheye = data.m_fisheye;
+    camera.m_nFishEyeModel = data.m_nFishEyeModel;
+    camera.m_cropFactor = data.m_cropFactor;
     camera.f_cx = data.m_fCx;
     camera.f_cy = data.m_fCy;
     camera.f_rad = data.m_fRad;

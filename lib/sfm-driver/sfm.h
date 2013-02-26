@@ -41,11 +41,15 @@ typedef struct {
     double K_known[9];  /* Intrinsics (if known) */
     double k_known[5];  /* Distortion params (if known) */
 
-    char fisheye;            /* Is this a fisheye image? */
+    char m_bFisheye;            /* Is this a fisheye image? */
+    int  m_nFishEyeModel;    /* What model to use? */
+   
     char known_intrinsics;   /* Are the intrinsics known? */
     double f_cx, f_cy;       /* Fisheye center */
     double f_rad, f_angle;   /* Other fisheye parameters */
     double f_focal;          /* Fisheye focal length */
+    double m_cropFactor;     /* How much image scaling? */
+
 
     double f_scale, k_scale; /* Scale on focal length, distortion params */
 } camera_params_t;

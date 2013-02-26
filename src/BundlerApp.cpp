@@ -68,13 +68,17 @@
 
 extern int optind;
 
-static void ReadFisheyeParameters(char *filename, 
+static void ReadFisheyeParameters(char *filename,
+                  int &nModel,
 				  double &fCx, double &fCy, 
-				  double &fRad, double &fAngle, 
-                                  double &fFocal)
+				  double &fRad, double &fAngle,
+                  double &cropFactor,
+                  double &fFocal)
 {
     fCx = 0.0;
     fCy = 0.0;
+    nModel = 1;  // 0 == linear, equidistant = 1;
+    cropFactor = 1.0;
 
     /* Read fisheye params */
     FILE *f = fopen(filename, "r");
@@ -129,13 +133,32 @@ static void ReadFisheyeParameters(char *filename,
 	    } else {
 		fFocal = atof(toks[1].c_str());
 	    }
-	} else {
+	}
+    else if (strcmp(toks[0].c_str(), "FisheyeModel:") == 0) {
+	    if (toks.size() != 2) {
+		printf("FisheyeModel needs one int argument!\n");
+		exit(1);
+	    } else {
+		nModel = atoi(toks[1].c_str());
+	    }
+	}
+    else if (strcmp(toks[0].c_str(), "cropFactor:") == 0) {
+	    if (toks.size() != 2) {
+		printf("cropFactor needs one argument!\n");
+		exit(1);
+	    } else {
+		cropFactor = atof(toks[1].c_str());
+	    }
+	}
+    else {
 	    printf("Unrecognized fisheye field %s\n", toks[0].c_str());
 	}
     }
 
     fclose(f);
 }
+
+
 
 void PrintUsage() 
 {
@@ -873,9 +896,10 @@ bool BundlerApp::OnInit()
 	int num_images = GetNumImages();
 
 	if (m_fisheye) {
-	    double fCx = 0.0, fCy = 0.0, fRad = 0.0, fAngle = 0.0, fFocal = 0.0;
-	    ReadFisheyeParameters(m_fisheye_params, 
-				             fCx, fCy, fRad, fAngle, fFocal);
+	    double fCx = 0.0, fCy = 0.0, fRad = 0.0, fAngle = 0.0, fFocal = 0.0, cropFactor = 1;
+        int nModel = 1;
+	    ReadFisheyeParameters(m_fisheye_params, nModel,
+				             fCx, fCy, fRad, fAngle, fFocal, cropFactor);
 	    
 	    for (int i = 0; i < num_images; i++) {
             if (m_image_data[i].m_fisheye) {
@@ -884,6 +908,8 @@ bool BundlerApp::OnInit()
                 m_image_data[i].m_fRad = fRad;
                 m_image_data[i].m_fAngle = fAngle;
                 m_image_data[i].m_fFocal = fFocal;
+                m_image_data[i].m_cropFactor = cropFactor;
+                m_image_data[i].m_nFishEyeModel = nModel;
             }                
 	    }
 	}

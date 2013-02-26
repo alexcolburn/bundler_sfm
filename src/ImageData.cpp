@@ -1134,6 +1134,33 @@ void ImageData::DistortPoint(double x, double y,
     DistortPoint(x, y, I, x_out, y_out);
 }
 
+double EquidistantDistortion( double R, double FocalLength, double cropFactor, bool bForward = true )
+{
+
+    //Forward distortion
+    //Rd = 2f sin( atan(Ru/(f*c))/2)
+    
+    double Rd = R;
+    if ( bForward )
+    {
+        double R1 = atan( R / (FocalLength * cropFactor) )/2.0;
+        R1 = MAX(R1 , -M_PI);
+        R1 = MIN(R1, M_PI );
+        Rd =  2.0 * FocalLength * sin(R1);
+    }
+    else
+    {
+        //Undistort
+        //(f*c)*tan(2.0 * asin(Rd/2f)) = Ru
+        double R1 = R/( 2.0 * FocalLength);
+        R1 = MAX(R1 , -1);
+        R1 = MIN(R1, 1 );
+        Rd = (FocalLength * cropFactor) * tan(2.0 * asin(R1));
+     }
+    
+    return Rd;
+}
+
 void ImageData::DistortPoint(double x, double y, double *R,
 			     double &x_out, double &y_out) const
 {
@@ -1160,9 +1187,18 @@ void ImageData::DistortPoint(double x, double y, double *R,
     }
     
     double r = sqrt(xn * xn + yn * yn);
-    double angle = RAD2DEG(atan(r / m_fFocal));
-    double rnew = m_fRad * angle / (0.5 * m_fAngle);
     
+    double rnew = r;
+    if ( m_nFishEyeModel == 0 )
+    {
+        double angle = RAD2DEG(atan(r / m_fFocal));
+        rnew = m_fRad * angle / (0.5 * m_fAngle);
+    }
+    else
+    {
+        rnew = EquidistantDistortion( r, m_fFocal, m_cropFactor );
+        
+    }
     x_out = xn * (rnew / r) + m_fCx;
     y_out = yn * (rnew / r) + m_fCy;
 }
@@ -1183,8 +1219,16 @@ void ImageData::UndistortPoint(double x, double y,
     double yn = y - m_fCy;
     
     double r = sqrt(xn * xn + yn * yn);
-    double angle = 0.5 * m_fAngle * (r / m_fRad);
-    double rnew = m_fFocal * tan(DEG2RAD(angle));
+    double rnew = r;
+    if ( m_nFishEyeModel == 0 )
+    {
+        double angle = 0.5 * m_fAngle * (r / m_fRad);
+        rnew = m_fFocal * tan(DEG2RAD(angle));
+    }
+    else
+    {
+        rnew = EquidistantDistortion( r, m_fFocal, m_cropFactor, false );
+    }
     
     x_out = xn * (rnew / r); // + m_fCx;
     y_out = yn * (rnew / r); // + m_fCy;

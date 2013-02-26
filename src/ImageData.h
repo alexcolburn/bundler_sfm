@@ -362,10 +362,12 @@ public:
     bool m_licensed;         /* Can we actually use this image? */
 
     bool m_fisheye;            /* Is this a fisheye image? */
+    int  m_nFishEyeModel;
     double m_fCx, m_fCy;       /* Fisheye center */
     double m_fRad, m_fAngle;   /* Other fisheye parameters */
     double m_fFocal;           /* Desired focal length */
-
+    double m_cropFactor;
+    
     double m_lat, m_long;      /* Latitude and longitude (if known) */
     double m_geocentric[3];    /* Geocentric position */
     double m_geoplanar[3];     /* Geoplanar */

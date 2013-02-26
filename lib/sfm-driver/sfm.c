@@ -389,14 +389,21 @@ static void sfm_project_point(int j, int i, double *aj, double *bi,
     double *w, *dt;
 
     /* Compute intrinsics */
-    if (!globs->est_focal_length) {
-	K[0] = K[4] = globs->init_params[j].f; // globs->global_params.f;
-    } else if (globs->const_focal_length) {
-	printf("Error: case of constant focal length "
+    
+    if (!globs->est_focal_length)
+    {
+        K[0] = K[4] = globs->init_params[j].f; // globs->global_params.f;
+    }
+    else
+    if (globs->const_focal_length)
+    {
+        printf("Error: case of constant focal length "
 	       "has not been implemented.\n");
-	K[0] = K[4] = globs->global_params.f;
-    } else {
-	K[0] = K[4] = aj[6];
+        K[0] = K[4] = globs->global_params.f;
+    }
+    else
+    {
+        K[0] = K[4] = aj[6];
     }
     
     /* Compute translation, rotation update */
@@ -422,12 +429,12 @@ static void sfm_project_point(int j, int i, double *aj, double *bi,
 // k_scale 100.0
 // focal_scale 0.001
 
-static void sfm_fisheye_distort(camera_params_t *cam,
+static void sfm_fisheye_distort_equidistant(camera_params_t *cam,
                                 double *x_u, double *x_d)
 {
     double xn, yn, r, angle, rnew;
 
-    if (cam->fisheye == 0) {
+    if (cam->m_bFisheye == 0) {
         x_d[0] = x_u[0];
         x_d[1] = x_u[1];
         return;
@@ -443,6 +450,84 @@ static void sfm_fisheye_distort(camera_params_t *cam,
     x_d[0] = xn * (rnew / r) + cam->f_cx;
     x_d[1] = yn * (rnew / r) + cam->f_cy;    
 }
+
+#ifndef MIN
+#define MIN(a,b) (((a)<(b)) ?(a):(b))
+#endif
+
+#ifndef MAX
+#define MAX(a,b) (((a)>(b)) ?(a):(b))
+#endif
+
+
+double smf_EquidistantDistortion( double R, double FocalLength, double cropFactor, int bForward  )
+{
+
+    //Forward distortion
+    //Rd = 2f sin( atan(Ru/(f*c))/2)
+    
+    double Rd = R;
+    if ( bForward )
+    {
+        double R1 = atan( R / (FocalLength * cropFactor) )/2.0;
+        R1 = MAX(R1 , -M_PI);
+        R1 = MIN(R1, M_PI );
+        Rd =  2.0 * FocalLength * sin(R1);
+    }
+    else
+    {
+        //Undistort
+        //(f*c)*tan(2.0 * asin(Rd/2f)) = Ru
+        double R1 = R/( 2.0 * FocalLength);
+        R1 = MAX(R1 , -1);
+        R1 = MIN(R1, 1 );
+        Rd = (FocalLength * cropFactor) * tan(2.0 * asin(R1));
+     }
+    
+    return Rd;
+}
+
+static void sfm_fisheye_distort_equisolid(camera_params_t *cam,
+                                double *x_u, double *x_d)
+{
+    double xn, yn, r,  rnew;
+
+    if (cam->m_bFisheye == 0) {
+        x_d[0] = x_u[0];
+        x_d[1] = x_u[1];
+        return;
+    }
+    
+    xn = x_u[0];
+    yn = x_u[1];
+    
+    r = sqrt(xn * xn + yn * yn);
+    
+    rnew = smf_EquidistantDistortion( r, cam->f, cam->m_cropFactor, 1  );
+    
+    x_d[0] = xn * (rnew / r) + cam->f_cx;
+    x_d[1] = yn * (rnew / r) + cam->f_cy;    
+}
+
+static void sfm_fisheye_distort(camera_params_t *cam,
+                                double *x_u, double *x_d)
+{
+    
+    if (cam->m_bFisheye == 0) {
+        x_d[0] = x_u[0];
+        x_d[1] = x_u[1];
+        return;
+    }
+    if ( cam->m_nFishEyeModel == 0 )
+    {
+        sfm_fisheye_distort_equidistant(cam, x_u, x_d );
+    }
+    else
+    {
+        sfm_fisheye_distort_equisolid(cam, x_u, x_d );
+    }
+}
+
 
 static void sfm_project_point2_fisheye(int j, int i, double *aj, double *bi, 
                                        double *xij, void *adata)
