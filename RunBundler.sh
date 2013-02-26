@@ -115,13 +115,14 @@ echo "[- Done -]"
 
 rm -r ./pmvs
 
-Bundle2PMVS list.txt bundle/bundle.out
+"$BASE_PATH"/bin/Bundle2PMVS list.txt bundle/bundle.out
 
 mkdir pmvs
 
 echo "Bundle2PMVS $1 $2"
 
-sh pmvs/prep_pmvs.sh
+cat pmvs/prep_pmvs.sh | awk -F= '{ if ($1 == "BUNDLER_BIN_PATH") print("BUNDLER_BIN_PATH="path); else print($0); }' path="$BASE_PATH"/bin/ > pmvs/fixedprep_pmvs.sh
+sh pmvs/fixedprep_pmvs.sh
 
 cd pmvs
 ~/pmvs3/matchp-64 ./ pmvs_options.txt

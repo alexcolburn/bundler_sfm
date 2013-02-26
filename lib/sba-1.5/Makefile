@@ -17,7 +17,8 @@ MAKE=make
 
 LIB=libsba.v1.5.a
 
-CFLAGS=-Wall $(OPTFLAGS) $(INCLUDE_FLAGS) -arch x86_64
+
+CFLAGS=-Wall $(OPTFLAGS) $(INCLUDE_FLAGS) 
 
 all: $(LIB)
 

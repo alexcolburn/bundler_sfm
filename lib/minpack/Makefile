@@ -9,7 +9,7 @@ OBJS=dpmpar.o \
 
 AR=ar
 FC=gfortran
-FFLAGS=-O2 -ffast-math -arch x86_64
+FFLAGS=-O2 -ffast-math 
 
 all: libminpack.a
 
