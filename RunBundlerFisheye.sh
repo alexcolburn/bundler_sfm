@@ -134,8 +134,8 @@ echo "--fisheye fisheye.txt" >> options.txt
 #echo "--init_pair1 0" >> options.txt
 #echo "--init_pair2 1" >> options.txt
 
-
-awk '{ print $1 " 1 " $2 }'  list.txt > list1.txt
+FOCAL=`cat fisheye.txt | grep FisheyeFocal | awk '{print $2}'`
+awk '{ print $1 " 1 " FF }' FF=$FOCAL list.txt > list1.txt
 
 
 # Run Bundler!

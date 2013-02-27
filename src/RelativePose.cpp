@@ -208,6 +208,11 @@ bool BundlerApp::EstimateRelativePose2(int i1, int i2,
     std::vector<KeypointMatch> &matches = m_matches.GetMatchList(list_idx);
     // int num_matches = (int) m_match_lists[list_idx].size();
     int num_matches = (int) matches.size();
+    
+    if ( num_matches == 0 )
+    {
+        return false;
+    }
 
     // double f1 = m_image_data[i1].m_init_focal;
     // double f2 = m_image_data[i2].m_init_focal;
@@ -218,7 +223,9 @@ bool BundlerApp::EstimateRelativePose2(int i1, int i2,
     double R0[9], t0[3];
     int num_inliers = 0;
 
+    
     if (!m_optimize_for_fisheye) {
+        
         num_inliers = 
             EstimatePose5Point(m_image_data[i1].m_keys, 
                                m_image_data[i2].m_keys, 

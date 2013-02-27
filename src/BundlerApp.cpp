@@ -143,7 +143,7 @@ static void ReadFisheyeParameters(char *filename,
 	    }
 	}
     else if (strcmp(toks[0].c_str(), "cropFactor:") == 0) {
-	    if (toks.size() != 2) {
+	    if (toks.size() < 2) {
 		printf("cropFactor needs one argument!\n");
 		exit(1);
 	    } else {
@@ -899,7 +899,7 @@ bool BundlerApp::OnInit()
 	    double fCx = 0.0, fCy = 0.0, fRad = 0.0, fAngle = 0.0, fFocal = 0.0, cropFactor = 1;
         int nModel = 1;
 	    ReadFisheyeParameters(m_fisheye_params, nModel,
-				             fCx, fCy, fRad, fAngle, fFocal, cropFactor);
+				             fCx, fCy, fRad, fAngle, cropFactor, fFocal );
 	    
 	    for (int i = 0; i < num_images; i++) {
             if (m_image_data[i].m_fisheye) {
