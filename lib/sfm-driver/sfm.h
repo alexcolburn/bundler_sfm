@@ -51,7 +51,7 @@ typedef struct {
     double m_cropFactor;     /* How much image scaling? */
 
 
-    double f_scale, k_scale; /* Scale on focal length, distortion params */
+    double f_scale, k_scale, fisheye_scale; /* Scale on focal length, distortion params */
 } camera_params_t;
 
 /* Compute an updated rotation matrix given the initial rotation (R)
@@ -65,6 +65,12 @@ void sfm_project(camera_params_t *init, double *K,
 void sfm_project_rd(camera_params_t *init, double *K, double *k,
                     double *R, double *dt, double *b, double *p,
                     int undistort, int explicit_camera_centers);
+
+void sfm_project2(camera_params_t *init, double f,
+                  double *R, double *dt, double *b, double *p,
+                  int explicit_camera_centers);
+void sfm_fisheye_distort(camera_params_t *cam, double FocalLength, double *x_u, double *x_d);
+
 
 v2_t sfm_project_final(camera_params_t *params, v3_t pt,
 		       int explicit_camera_centers, int undistort);

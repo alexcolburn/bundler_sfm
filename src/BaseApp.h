@@ -361,6 +361,7 @@ public:
 
     /* Get keys */
     Keypoint &GetKey(int img, int key);
+    Keypoint GetUndistortedKey(double FocalLength, int img, int key);
     KeypointWithDesc &GetKeyWithDesc(int img, int key);
     int GetNumKeys(int img);
     /* Get the index of a registered camera */
@@ -570,6 +571,7 @@ public:
     bool m_metric;               /* Is the scene in meters? */
 
     bool m_fisheye;              /* Use fisheye images? */
+    bool m_estimate_fisheye;
     char *m_fisheye_params;      /* Fisheye parameter file */
 
     char *m_ignore_file;         /* Contains the images to ignore during

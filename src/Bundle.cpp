@@ -225,6 +225,7 @@ void InitializeCameraParams(const ImageData &data, camera_params_t &camera)
 
     camera.f_scale = 1.0;
     camera.k_scale = 1.0;
+    camera.fisheye_scale = 1.0;
 
     for (int i = 0; i < NUM_CAMERA_PARAMS; i++) {
         camera.constrained[i] = 0;
@@ -585,7 +586,7 @@ double BundlerApp::RunSFM(int num_pts, int num_cameras, int start_camera,
                     int k = pt_views[i][j].second;
 
                     vmask[nz_count * num_cameras + c] = 1;
-
+                    //ALEX: This keypoint must be distorted
                     projections[2 * arr_idx + 0] = GetKey(v,k).m_x;
                     projections[2 * arr_idx + 1] = GetKey(v,k).m_y;
 
@@ -694,16 +695,33 @@ double BundlerApp::RunSFM(int num_pts, int num_cameras, int start_camera,
                         b[1] = Vy(nz_pts[remap[pt_idx]]);
                         b[2] = Vz(nz_pts[remap[pt_idx]]);
 
-                        sfm_project_rd(&(init_camera_params[i]), K, 
-                            init_camera_params[i].k,
-                            init_camera_params[i].R, dt, b, pr, 
-                            m_estimate_distortion, true);
+                        
+                        sfm_project_rd(&(init_camera_params[i]), K,
+                                init_camera_params[i].k,
+                                init_camera_params[i].R, dt, b, pr,
+                                m_estimate_distortion, true);
+                        
+                        //printf( "sfm_project_rd : %f %f\n", (float) pr[0], (float) pr[1] );
+                        
+                        //ALEX:  Fisheye should use the same metrics as the objective function
+                        if (m_optimize_for_fisheye)
+                        {
+                        
+                            //sfm_project2(&(init_camera_params[i]),
+                             //              init_camera_params[i].f,
+                             //              init_camera_params[i].R, dt, b, pr, true);
 
-                        if (m_optimize_for_fisheye) {
+                            //printf( "sfm_project2 : %f %f\n", (float) pr[0], (float) pr[1] );
+
+    
+                            sfm_fisheye_distort(&(init_camera_params[i]), init_camera_params[i].f_focal, pr, pr);
+                            //printf( "sfm_fisheye_distort : %f %f\n", (float) pr[0], (float) pr[1] );
+
+
                             /* Distort the points */
-                            double x = pr[0], y = pr[1];
-                            m_image_data[added_order[i]].
-                                DistortPoint(x, y, pr[0], pr[1]);
+                            //double x = pr[0], y = pr[1];
+                            //m_image_data[added_order[i]].
+                            //DistortPoint(x, y, pr[0], pr[1]);
                         }
 
                         dx = pr[0] - key.m_x;
@@ -968,6 +986,9 @@ void BundlerApp::InitializeBundleAdjust(int &num_init_cams,
     num_init_cams = 0;
 
     for (int i = 0; i < num_images; i++) {
+        //force a key reload & don't undistort
+        //m_image_data[i].m_keys_loaded = 0;
+        //m_image_data[i].LoadKeys(false, !m_optimize_for_fisheye);
         if (m_image_data[i].m_camera.m_adjusted) {
             printf("[InitializeBundleAdjust] Loading keys for "
                 "image %d\n", i);
@@ -2165,9 +2186,9 @@ void BundlerApp::BundleAdjust()
                     double y2 = proj2[1];
 
                     m_image_data[added_order[0]].
-                        UndistortPoint(x1, y1, proj1[0], proj1[1]);
+                        UndistortPoint(cameras[added_order[0]].f_focal,x1, y1, proj1[0], proj1[1]);
                     m_image_data[added_order[1]].
-                        UndistortPoint(x2, y2, proj2[0], proj2[1]);
+                        UndistortPoint(cameras[added_order[1]].f_focal,x2, y2, proj2[0], proj2[1]);
                 }
 
 
@@ -2503,8 +2524,8 @@ std::vector<int> RefineCameraParameters(const ImageData &data,
     v3_t *points_curr = new v3_t[num_points];
     v2_t *projs_curr = new v2_t[num_points];
 
-    memcpy(points_curr, points, num_points * sizeof(v3_t));
-    memcpy(projs_curr, projs, num_points * sizeof(v2_t));
+    memcpy(points_curr, points, num_points * sizeof(v3_t));  //ALEX: Unfisheyed points
+    memcpy(projs_curr, projs, num_points * sizeof(v2_t));    //ALEX: Also Unfisheyed points
 
     std::vector<int> inliers;
 
@@ -2539,12 +2560,13 @@ std::vector<int> RefineCameraParameters(const ImageData &data,
             v2_t pr = sfm_project_final(camera, points_curr[i], 1,
                 estimate_distortion ? 1 : 0);
 
-            if (optimize_for_fisheye) {
+            if (optimize_for_fisheye) //ALEX:???? The incoming points are already undistorted right?
+            {
                 /* Distort pr */
 
                 double x = Vx(pr);
                 double y = Vy(pr);
-                data.DistortPoint(x, y, Vx(pr), Vy(pr));
+                data.DistortPoint(camera->f_focal,x, y, Vx(pr), Vy(pr));
             }
 
             double dx = Vx(pr) - Vx(projs_curr[i]);
@@ -3014,7 +3036,8 @@ BundlerApp::BundleInitializeImage(ImageData &data,
             double x = data.m_keys[key].m_x;
             double y = data.m_keys[key].m_y;
             double x_u, y_u;
-            data.UndistortPoint(x, y, x_u, y_u);
+            //ALEX: The camera is not initialized use the image focal
+            data.UndistortPoint(data.m_fFocal,x, y, x_u, y_u);
             projs_solve[num_pts_solve] = v2_new(x_u, y_u);
             projs_solve_orig[num_pts_solve] = v2_new(x, y);
         } else {
@@ -3151,11 +3174,12 @@ BundlerApp::BundleInitializeImage(ImageData &data,
     int num_points_final = num_inliers;
 
     for (int i = 0; i < num_inliers; i++) {
-        points_final[i] = points_solve[inliers_weak[i]];
-        if (m_optimize_for_fisheye)
-            projs_final[i] = projs_solve_orig[inliers_weak[i]];
-        else
-            projs_final[i] = projs_solve[inliers_weak[i]];
+        points_final[i] = points_solve[inliers_weak[i]]; //ALEX: Unfisheyed points
+        //ALEX: Why reproject?  We are not updating the fisheye, unfisheye once and leave it
+        //if (m_optimize_for_fisheye)
+        //    projs_final[i] = projs_solve_orig[inliers_weak[i]];  //ALEX: Original points
+        //else
+        projs_final[i] = projs_solve[inliers_weak[i]];
 
         idxs_final[i] = idxs_solve[inliers_weak[i]];
         keys_final[i] = keys_solve[inliers_weak[i]];
@@ -3172,7 +3196,7 @@ BundlerApp::BundleInitializeImage(ImageData &data,
             points_final, projs_final, 
             idxs_final, &camera_new, 
             NULL, !m_fixed_focal_length, true,
-            m_optimize_for_fisheye,
+            0, //ALEX: see above, was: m_optimize_for_fisheye,
             m_estimate_distortion,
             m_min_proj_error_threshold,
             m_max_proj_error_threshold);
@@ -3335,7 +3359,7 @@ void BundlerApp::BundleInitializeImageFullBundle(int image_idx, int parent_idx,
                     double x = GetKey(image_idx,this_idx).m_x;
                     double y = GetKey(image_idx,this_idx).m_y;
                     double x_u, y_u;
-                    m_image_data[image_idx].UndistortPoint(x, y, x_u, y_u);
+                    m_image_data[image_idx].UndistortPoint(cameras[image_idx].f_focal,x, y, x_u, y_u);
                     projs_solve[num_pts_solve] = v2_new(x_u, y_u);
                 } else {
                     projs_solve[num_pts_solve] = 
@@ -3878,7 +3902,8 @@ bool BundlerApp::BundleRegisterImage(ImageData &data, bool init_location)
                         double x = data.m_keys_desc[idx1].m_x;
                         double y = data.m_keys_desc[idx1].m_y;
                         double x_u, y_u;
-                        m_image_data[idx1].UndistortPoint(x, y, x_u, y_u);
+                        //ALEX: No camera info yet, use default estimate for focal
+                        m_image_data[idx1].UndistortPoint(m_image_data[idx1].m_fFocal,x, y, x_u, y_u);
                         projs_solve[num_pts_solve] = v2_new(x_u, y_u);
                     } else {
                         projs_solve[num_pts_solve] = 
@@ -3946,7 +3971,8 @@ bool BundlerApp::BundleRegisterImage(ImageData &data, bool init_location)
                 double x = data.m_keys_desc[key_idx].m_x;
                 double y = data.m_keys_desc[key_idx].m_y;
                 double x_u, y_u;
-                data.UndistortPoint(x, y, x_u, y_u);
+                //ALEX: Use the default focal here... no camera information
+                data.UndistortPoint(data.m_fFocal, x, y, x_u, y_u);
                 projs_solve[i] = v2_new(x_u, y_u);
             } else {
                 projs_solve[i] = 
@@ -4150,7 +4176,7 @@ bool BundlerApp::BundleRegisterImage(ImageData &data, bool init_location)
 
     return success;
 }
-
+//ALEX: Is this metric valid for Fisheye?
 int BundlerApp::RemoveBadPointsAndCameras(int num_points, int num_cameras, 
                                           int *added_order, 
                                           camera_params_t *cameras,

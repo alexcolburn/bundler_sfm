@@ -34,6 +34,7 @@ public:
         m_bundle_version = 0.1;
 
         m_fisheye = false;
+        m_estimate_fisheye = false;
         m_fixed_focal_length = true;
         m_estimate_distortion = false;
         m_construct_max_connectivity = false;

@@ -165,11 +165,14 @@ public:
     /* Create a pinhole view for the keys */
     void UndistortKeys();
     std::vector<Keypoint> UndistortKeysCopy();
-    void DistortPoint(double x, double y, double *R, 
-        double &x_out, double &y_out) const;
-    void DistortPoint(double x, double y, double &x_out, double &y_out) const;
-    void UndistortPoint(double x, double y, 
-        double &x_out, double &y_out) const;
+    void DistortPoint(double x, double y, double *R, double &x_out, double &y_out) const;
+    //void DistortPoint(double x, double y, double &x_out, double &y_out) const;
+    void DistortPoint(double FocalLength, double x, double y, double *R, double &x_out, double &y_out) const;
+    void DistortPoint(double FocalLength, double x, double y, double &x_out, double &y_out) const;
+    void UndistortPoint(double FocalLength, double x, double y, double &x_out, double &y_out) const;
+    double EquidistantDistortion( double R, double FocalLength, double cropFactor, bool bForward = true ) const;
+
+    //void UndistortPoint(double x, double y, double &x_out, double &y_out) const;
 
     /* Radial distortion routines */
     void DistortPointRD(double x, double y, 

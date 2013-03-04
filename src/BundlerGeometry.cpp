@@ -232,10 +232,14 @@ bool BundlerApp::ComputeTransform(int idx1, int idx2, bool removeBadMatches)
 #endif
     
     std::vector<KeypointMatch> &list = m_matches.GetMatchList(offset);
-
+    //ALEX: Should be on Unfisheye distorted keys
+    
+    std::vector<Keypoint> idx1keys = m_image_data[idx1].UndistortKeysCopy();
+    std::vector<Keypoint> idx2keys = m_image_data[idx2].UndistortKeysCopy();
+    
     std::vector<int> inliers = 
-	EstimateTransform(m_image_data[idx1].m_keys, 
-			  m_image_data[idx2].m_keys, 
+	EstimateTransform(idx1keys,
+			  idx2keys,
 			  list, MotionHomography,
 			  m_homography_rounds, 
 			  m_homography_threshold,
@@ -384,7 +388,7 @@ void BundlerApp::ComputeTransforms(bool removeBadMatches, int new_image_start)
 }
 
 /* Compute epipolar geometry between a given pair of images */
-bool BundlerApp::ComputeEpipolarGeometry(int idx1, int idx2, 
+bool BundlerApp::ComputeEpipolarGeometry(int idx1, int idx2,
                                          bool removeBadMatches) 
 {
     assert(m_image_data[idx1].m_keys_loaded);
@@ -395,10 +399,14 @@ bool BundlerApp::ComputeEpipolarGeometry(int idx1, int idx2,
     std::vector<KeypointMatch> &list = m_matches.GetMatchList(offset);
 
     double F[9];
+    //ALEX: This should be on unfisheye distorted keys
     
-    std::vector<int> inliers = 
-	EstimateFMatrix(m_image_data[idx1].m_keys, 
-			m_image_data[idx2].m_keys, 
+    std::vector<Keypoint> idx1keys = m_image_data[idx1].UndistortKeysCopy();
+    std::vector<Keypoint> idx2keys = m_image_data[idx2].UndistortKeysCopy();
+    
+    std::vector<int> inliers =
+	EstimateFMatrix(idx1keys,
+			idx2keys,
 			list,
 			m_fmatrix_rounds, 
 			m_fmatrix_threshold /* 20.0 */ /* 9.0 */, F);
