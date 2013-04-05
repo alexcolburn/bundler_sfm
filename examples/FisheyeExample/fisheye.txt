@@ -1,0 +1,6 @@
+FisheyeCenter: 0 0
+FisheyeRadius: 0
+FisheyeAngle: 180
+FisheyeFocal: 901.0296
+FisheyeModel: 1
+cropFactor: 1.0

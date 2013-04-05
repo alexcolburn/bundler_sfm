@@ -1,0 +1,7 @@
+Focal Length:   8 
+Sensor Size: 17.3   13 
+Center:   0    0 
+cropFactor: 0.74 
+Radial Distortion: 0.000000  0.000000 
+Fisheye Distortion Correction: 0
+siftParams:[  --peak-thresh=3.4 --edge-thresh=10 --first-octave=-1 ]
