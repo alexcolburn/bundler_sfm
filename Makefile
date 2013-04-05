@@ -43,5 +43,5 @@ clean:
 	cd lib/cblas; $(MAKE) clean
 	cd lib/f2c; $(MAKE) clean
 	cd src; $(MAKE) clean
-	rm -f bin/bundler bin/KeyMatchFull
+	rm -f bin/bundler bin/KeyMatchFull bin/Bundle2PMVS bin/Bundle2Vis bin/RadialUndistort
 	rm -f lib/*.a
