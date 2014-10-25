@@ -68,7 +68,8 @@ v3_t BundlerApp::TriangulateNViews(const ImageKeyVector &views,
         if (m_optimize_for_fisheye) {
             /* Undistort the point */
             double x = p3[0], y = p3[1];
-            m_image_data[image_idx].UndistortPoint(x, y, p3[0], p3[1]);
+            //ALEX: This camera is not intialized yet use default
+            m_image_data[image_idx].UndistortPoint(m_image_data[image_idx].m_fFocal, x, y, p3[0], p3[1]);
         }
 
 	double K[9], Kinv[9];
@@ -108,7 +109,7 @@ v3_t BundlerApp::TriangulateNViews(const ImageKeyVector &views,
         
         if (m_optimize_for_fisheye) {
             double x = Vx(pr), y = Vy(pr);
-            m_image_data[image_idx].DistortPoint(x, y, Vx(pr), Vy(pr));
+            m_image_data[image_idx].DistortPoint((cameras + camera_idx)->f_focal,x, y, Vx(pr), Vy(pr));
         }        
 
 	double dx = Vx(pr) - key.m_x;
@@ -146,7 +147,7 @@ v3_t BundlerApp::GeneratePointAtInfinity(const ImageKeyVector &views,
     if (m_optimize_for_fisheye) {
         /* Undistort the point */
         double x = p3[0], y = p3[1];
-        m_image_data[image_idx].UndistortPoint(x, y, p3[0], p3[1]);
+        m_image_data[image_idx].UndistortPoint(cameras[image_idx].f_focal,x, y, p3[0], p3[1]);
     }
 
     double K[9], Kinv[9];
@@ -293,11 +294,11 @@ BundlerApp::BundleAdjustAddAllNewPoints(int num_points, int num_cameras,
                 if (m_optimize_for_fisheye) {
                     double p_x = Vx(p), p_y = Vy(p);
                     double q_x = Vx(q), q_y = Vy(q);
-                    
+                    //ALEX: Initialized cameras use default focal
                     m_image_data[image_idx1].
-                        UndistortPoint(p_x, p_y, Vx(p), Vy(p));
+                        UndistortPoint(m_image_data[image_idx1].m_fFocal,p_x, p_y, Vx(p), Vy(p));
                     m_image_data[image_idx2].
-                        UndistortPoint(q_x, q_y, Vx(q), Vy(q));
+                        UndistortPoint(m_image_data[image_idx2].m_fFocal,q_x, q_y, Vx(q), Vy(q));
                 }
 
 		double angle = ComputeRayAngle(p, q, 
@@ -615,9 +616,9 @@ int BundlerApp::BundleAdjustAddNewPoints(int camera_idx,
                     double q_x = Vx(q), q_y = Vy(q);
                     
                     m_image_data[other].
-                        UndistortPoint(p_x, p_y, Vx(p), Vy(p));
+                        UndistortPoint(cameras[other].f_focal, p_x, p_y, Vx(p), Vy(p));
                     m_image_data[image_idx].
-                        UndistortPoint(q_x, q_y, Vx(q), Vy(q));
+                        UndistortPoint(cameras[image_idx].f_focal,q_x, q_y, Vx(q), Vy(q));
                 }
 
 		double proj_error = 0.0;

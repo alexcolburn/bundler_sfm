@@ -17,7 +17,8 @@ MAKE=make
 
 LIB=libsba.v1.5.a
 
-CFLAGS=-Wall $(OPTFLAGS) $(INCLUDE_FLAGS)
+
+CFLAGS=-Wall $(OPTFLAGS) $(INCLUDE_FLAGS) 
 
 all: $(LIB)
 
@@ -33,8 +34,8 @@ sba_crsm.o: sba.h
 sba_chkjac.o: sba.h sba_chkjac.h compiler.h
 
 clean:
-	@rm -f *.o
-
+	@rm -f *.o 
+	@rm -f libsba.v1.5.a
 realclean cleanall: clean
 	@rm -f libsba.a
 

@@ -1,0 +1,8 @@
+--match_table matches.init.txt
+--output bundle.out
+--output_all bundle_
+--output_dir bundle
+--variable_focal_length
+--use_focal_estimate
+--run_bundle
+--fisheye fisheye.txt

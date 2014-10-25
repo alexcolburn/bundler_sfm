@@ -116,10 +116,11 @@ void TwoFrameModel::WriteWithProjections(FILE *f,
         double x2 = img2.m_keys[k2].m_x;
         double y2 = img2.m_keys[k2].m_y;
 
+        //ALEX: This should be undistorted with calculated Focal
         if (img1.m_fisheye)
-            img1.UndistortPoint(x1, y1, x1, y1);
+            img1.UndistortPoint(img1.m_fFocal, x1, y1, x1, y1);
         if (img2.m_fisheye)
-            img2.UndistortPoint(x2, y2, x2, y2);
+            img2.UndistortPoint(img2.m_fFocal, x2, y2, x2, y2);
 
         fprintf(f, "%0.9e %0.9e %0.9e %0.9e\n", x1, y1, x2, y2);
 
@@ -836,8 +837,8 @@ double BundlerApp::RunSFMNecker(int i1, int i2,
             double x2 = proj2[0];
             double y2 = proj2[1];
                     
-            m_image_data[i1].UndistortPoint(x1, y1, proj1[0], proj1[1]);
-            m_image_data[i2].UndistortPoint(x2, y2, proj2[0], proj2[1]);
+            m_image_data[i1].UndistortPoint(cameras[i1].f_focal,x1, y1, proj1[0], proj1[1]);
+            m_image_data[i2].UndistortPoint(cameras[i2].f_focal,x2, y2, proj2[0], proj2[1]);
         }
 	    
         v2_t p = v2_new(proj1[0], proj1[1]);
@@ -1049,9 +1050,9 @@ bool BundlerApp::BundleTwoFrame(int i1, int i2, TwoFrameModel *model,
         yp2 = y_proj2 = GetKey(i2,key_idx2).m_y;
         
         if (m_optimize_for_fisheye) {
-            m_image_data[i1].UndistortPoint(x_proj1, y_proj1, 
+            m_image_data[i1].UndistortPoint(cameras[i1].f_focal,x_proj1, y_proj1,
                                             x_proj1, y_proj1);
-            m_image_data[i2].UndistortPoint(x_proj2, y_proj2, 
+            m_image_data[i2].UndistortPoint(cameras[i2].f_focal,x_proj2, y_proj2,
                                             x_proj2, y_proj2);
         }
 
@@ -1080,8 +1081,8 @@ bool BundlerApp::BundleTwoFrame(int i1, int i2, TwoFrameModel *model,
             double px2 = -cameras[1].f * tmp2[0] / tmp2[2];
             double py2 = -cameras[1].f * tmp2[1] / tmp2[2];
 
-            m_image_data[i1].DistortPoint(px1, py1, px1, py1);
-            m_image_data[i2].DistortPoint(px2, py2, px2, py2);
+            m_image_data[i1].DistortPoint(cameras[i1].f,px1, py1, px1, py1);
+            m_image_data[i2].DistortPoint(cameras[i2].f,px2, py2, px2, py2);
 
             double dx1 = px1 - xp1;
             double dy1 = py1 - yp1;
@@ -1502,9 +1503,9 @@ bool BundlerApp::BundleTwoFrame(int i1, int i2, TwoFrameModel *model,
         double y_proj2 = GetKey(i2,key_idx2).m_y;
 
         if (m_optimize_for_fisheye) {
-            m_image_data[i1].UndistortPoint(x_proj1, y_proj1, 
+            m_image_data[i1].UndistortPoint(cameras[i1].f_focal,x_proj1, y_proj1,
                                             x_proj1, y_proj1);
-            m_image_data[i2].UndistortPoint(x_proj2, y_proj2, 
+            m_image_data[i2].UndistortPoint(cameras[i2].f_focal,x_proj2, y_proj2,
                                             x_proj2, y_proj2);
         }
         

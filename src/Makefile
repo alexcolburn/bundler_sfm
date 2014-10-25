@@ -14,7 +14,6 @@ RADIALUNDISTORT=RadialUndistort.exe
 else
 BUNDLER=bundler
 KEYMATCHFULL=KeyMatchFull
-BUNDLE2PLY=Bundle2Ply
 BUNDLE2PMVS=Bundle2PMVS
 BUNDLE2VIS=Bundle2Vis
 RADIALUNDISTORT=RadialUndistort
@@ -40,7 +39,7 @@ BUNDLER_LIBS=-limage -lsfmdrv -lsba.v1.5 -lmatrix -lz -llapack -lblas \
 	-lcblas -lminpack -lm -l5point -ljpeg -lANN_char -lgfortran
 
 
-all: $(BUNDLER) $(KEYMATCHFULL) $(BUNDLE2PLY) $(BUNDLE2PMVS) $(BUNDLE2VIS) $(RADIALUNDISTORT)
+all: $(BUNDLER) $(KEYMATCHFULL) $(BUNDLE2PMVS) $(BUNDLE2VIS) $(RADIALUNDISTORT)
 
 %.o : %.cpp
 	$(CXX) -c -o $@ $(CPPFLAGS) $(WXFLAGS) $(BUNDLER_DEFINES) $<
@@ -53,11 +52,6 @@ $(BUNDLER): $(BUNDLER_OBJS)
 $(KEYMATCHFULL): KeyMatchFull.o keys2a.o
 	$(CXX) -o $@ $(CPPFLAGS) $(LIB_PATH) KeyMatchFull.o keys2a.o \
 		-lANN_char -lz
-	cp $@ ../bin
-
-$(BUNDLE2PLY): Bundle2Ply.o
-	$(CXX) -o $@ $(CPPFLAGS) $(LIB_PATH) Bundle2Ply.o \
-		-lmatrix -llapack -lblas -lcblas -lgfortran -lminpack
 	cp $@ ../bin
 
 $(BUNDLE2PMVS): Bundle2PMVS.o LoadJPEG.o

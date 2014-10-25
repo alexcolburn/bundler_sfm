@@ -16,6 +16,7 @@
 
 /* matrix.c */
 /* Matrix operations */
+#define __NO_MKL__
 
 #include <assert.h>
 

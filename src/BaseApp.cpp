@@ -25,6 +25,15 @@ Keypoint &BaseApp::GetKey(int img, int key) {
     return m_image_data[img].m_keys[key];
 }
 
+Keypoint BaseApp::GetUndistortedKey(double FocalLength, int img, int key) {
+    Keypoint k = m_image_data[img].m_keys[key];
+    double x_out, y_out;
+    m_image_data[img].UndistortPoint(FocalLength, k.m_x, k.m_y,x_out, y_out);
+    k.m_x = x_out;
+    k.m_y = y_out;
+    return k;
+}
+
 KeypointWithDesc &BaseApp::GetKeyWithDesc(int img, int key) {
     return m_image_data[img].m_keys_desc[key];
 }

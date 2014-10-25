@@ -165,11 +165,14 @@ public:
     /* Create a pinhole view for the keys */
     void UndistortKeys();
     std::vector<Keypoint> UndistortKeysCopy();
-    void DistortPoint(double x, double y, double *R, 
-        double &x_out, double &y_out) const;
-    void DistortPoint(double x, double y, double &x_out, double &y_out) const;
-    void UndistortPoint(double x, double y, 
-        double &x_out, double &y_out) const;
+    void DistortPoint(double x, double y, double *R, double &x_out, double &y_out) const;
+    //void DistortPoint(double x, double y, double &x_out, double &y_out) const;
+    void DistortPoint(double FocalLength, double x, double y, double *R, double &x_out, double &y_out) const;
+    void DistortPoint(double FocalLength, double x, double y, double &x_out, double &y_out) const;
+    void UndistortPoint(double FocalLength, double x, double y, double &x_out, double &y_out) const;
+    double EquidistantDistortion( double R, double FocalLength, double cropFactor, bool bForward = true ) const;
+
+    //void UndistortPoint(double x, double y, double &x_out, double &y_out) const;
 
     /* Radial distortion routines */
     void DistortPointRD(double x, double y, 
@@ -362,10 +365,12 @@ public:
     bool m_licensed;         /* Can we actually use this image? */
 
     bool m_fisheye;            /* Is this a fisheye image? */
+    int  m_nFishEyeModel;
     double m_fCx, m_fCy;       /* Fisheye center */
     double m_fRad, m_fAngle;   /* Other fisheye parameters */
     double m_fFocal;           /* Desired focal length */
-
+    double m_cropFactor;
+    
     double m_lat, m_long;      /* Latitude and longitude (if known) */
     double m_geocentric[3];    /* Geocentric position */
     double m_geoplanar[3];     /* Geoplanar */

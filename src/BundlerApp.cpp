@@ -68,13 +68,17 @@
 
 extern int optind;
 
-static void ReadFisheyeParameters(char *filename, 
+static void ReadFisheyeParameters(char *filename,
+                  int &nModel,
 				  double &fCx, double &fCy, 
-				  double &fRad, double &fAngle, 
-                                  double &fFocal)
+				  double &fRad, double &fAngle,
+                  double &cropFactor,
+                  double &fFocal)
 {
     fCx = 0.0;
     fCy = 0.0;
+    nModel = 1;  // 0 == linear, equidistant = 1;
+    cropFactor = 1.0;
 
     /* Read fisheye params */
     FILE *f = fopen(filename, "r");
@@ -129,13 +133,32 @@ static void ReadFisheyeParameters(char *filename,
 	    } else {
 		fFocal = atof(toks[1].c_str());
 	    }
-	} else {
+	}
+    else if (strcmp(toks[0].c_str(), "FisheyeModel:") == 0) {
+	    if (toks.size() != 2) {
+		printf("FisheyeModel needs one int argument!\n");
+		exit(1);
+	    } else {
+		nModel = atoi(toks[1].c_str());
+	    }
+	}
+    else if (strcmp(toks[0].c_str(), "cropFactor:") == 0) {
+	    if (toks.size() < 2) {
+		printf("cropFactor needs one argument!\n");
+		exit(1);
+	    } else {
+		cropFactor = atof(toks[1].c_str());
+	    }
+	}
+    else {
 	    printf("Unrecognized fisheye field %s\n", toks[0].c_str());
 	}
     }
 
     fclose(f);
 }
+
+
 
 void PrintUsage() 
 {
@@ -179,6 +202,8 @@ void PrintUsage()
            "    [Other bundle adjustment options]\n"
 	   "      --fisheye <paramfile>\n"
 	   "         Read fisheye parameters from given file\n"
+       "      --estimate_fisheye\n"
+	   "         Estimtate fisheye parameters\n"
 	   "      --init_pair1 <img1>\n"
 	   "      --init_pair2 <img1>\n"
 	   "         Indices of the images with which to seed\n"
@@ -293,6 +318,7 @@ void BundlerApp::ProcessOptions(int argc, char **argv)
 
 	    {"ray_angle_threshold", 1, 0, 'N'},
 	    {"estimate_distortion", 0, 0, 347},
+        {"estimate_fisheye", 0, 0, 400},  //ALEX: global estimate fisheye focal length, equisolid model
             {"distortion_weight", 1, 0, 348},//
 	    {"construct_max_connectivity", 0, 0, '*'},//
 
@@ -368,10 +394,14 @@ void BundlerApp::ProcessOptions(int argc, char **argv)
 
 	    case 'f':
 		m_fisheye = true;
-		printf("Using fisheye lens, param file: %s\n", optarg);
+        m_optimize_for_fisheye = true;
+        printf("Using fisheye lens, param file: %s\n", optarg);
 		m_fisheye_params = strdup(optarg);
 		break;
 
+        case 400:
+            m_estimate_fisheye = true;
+        break;
             case 357:
                 m_use_intrinsics = true;
                 m_intrinsics_file = strdup(optarg);
@@ -407,7 +437,7 @@ void BundlerApp::ProcessOptions(int argc, char **argv)
 		m_bundle_output_base = strdup(optarg);
 		break;
 	    case 'i':
-		m_init_focal_length = atof(optarg);
+		m_init_focal_length = atof(optarg);  //ALEX:  NOW overridden with fisheye known parameters
 		break;
 	    case 'v':
 		m_fixed_focal_length = false;
@@ -873,17 +903,27 @@ bool BundlerApp::OnInit()
 	int num_images = GetNumImages();
 
 	if (m_fisheye) {
-	    double fCx = 0.0, fCy = 0.0, fRad = 0.0, fAngle = 0.0, fFocal = 0.0;
-	    ReadFisheyeParameters(m_fisheye_params, 
-				             fCx, fCy, fRad, fAngle, fFocal);
-	    
+	    double fCx = 0.0, fCy = 0.0, fRad = 0.0, fAngle = 0.0, fFocal = 0.0, cropFactor = 1;
+        int nModel = 1;
+	    ReadFisheyeParameters(m_fisheye_params, nModel,
+				             fCx, fCy, fRad, fAngle, cropFactor, fFocal );
+        //ALEX: Set the m_init_focal_length to the estimate from the fisheye lens
+	    m_init_focal_length = fFocal;
 	    for (int i = 0; i < num_images; i++) {
-            if (m_image_data[i].m_fisheye) {
+            if (m_image_data[i].m_fisheye)
+            {
                 m_image_data[i].m_fCx = fCx;
                 m_image_data[i].m_fCy = fCy;
                 m_image_data[i].m_fRad = fRad;
                 m_image_data[i].m_fAngle = fAngle;
                 m_image_data[i].m_fFocal = fFocal;
+                m_image_data[i].m_cropFactor = cropFactor;
+                m_image_data[i].m_nFishEyeModel = nModel;
+                if ( !m_image_data[i].m_has_init_focal )
+                {
+                    m_image_data[i].m_has_init_focal = 1;
+                    m_image_data[i].m_init_focal = fFocal;
+                }
             }                
 	    }
 	}

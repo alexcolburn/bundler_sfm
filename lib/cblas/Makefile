@@ -33,4 +33,4 @@ libcblas.a: $(dlev3) $(errhand)
 #
 clean:
 	rm -f *.o *~
-
+	rm -f *.a

@@ -47,6 +47,9 @@ typedef struct {
 			            * cameras? */
     int explicit_camera_centers;   /* Are the camera centers explicit? */
     int estimate_distortion;       /* Apply undistortion? */
+    int estimate_fisheye_focal;
+    
+    int f_offset, k_offset, ff_offset;
     
     camera_params_t global_params;
     camera_params_t *init_params;  /* Initial camera parameters */
@@ -389,14 +392,21 @@ static void sfm_project_point(int j, int i, double *aj, double *bi,
     double *w, *dt;
 
     /* Compute intrinsics */
-    if (!globs->est_focal_length) {
-	K[0] = K[4] = globs->init_params[j].f; // globs->global_params.f;
-    } else if (globs->const_focal_length) {
-	printf("Error: case of constant focal length "
+    
+    if (!globs->est_focal_length)
+    {
+        K[0] = K[4] = globs->init_params[j].f; // globs->global_params.f;
+    }
+    else
+    if (globs->const_focal_length)
+    {
+        printf("Error: case of constant focal length "
 	       "has not been implemented.\n");
-	K[0] = K[4] = globs->global_params.f;
-    } else {
-	K[0] = K[4] = aj[6];
+        K[0] = K[4] = globs->global_params.f;
+    }
+    else
+    {
+        K[0] = K[4] = aj[6];
     }
     
     /* Compute translation, rotation update */
@@ -422,12 +432,12 @@ static void sfm_project_point(int j, int i, double *aj, double *bi,
 // k_scale 100.0
 // focal_scale 0.001
 
-static void sfm_fisheye_distort(camera_params_t *cam,
+static void sfm_fisheye_distort_equidistant(camera_params_t *cam,
                                 double *x_u, double *x_d)
 {
     double xn, yn, r, angle, rnew;
 
-    if (cam->fisheye == 0) {
+    if (cam->m_bFisheye == 0) {
         x_d[0] = x_u[0];
         x_d[1] = x_u[1];
         return;
@@ -443,6 +453,101 @@ static void sfm_fisheye_distort(camera_params_t *cam,
     x_d[0] = xn * (rnew / r) + cam->f_cx;
     x_d[1] = yn * (rnew / r) + cam->f_cy;    
 }
+
+#ifndef MIN
+#define MIN(a,b) (((a)<(b)) ?(a):(b))
+#endif
+
+#ifndef MAX
+#define MAX(a,b) (((a)>(b)) ?(a):(b))
+#endif
+
+
+double smf_EquidistantDistortion( double R, double FocalLength, double cropFactor, int bForward  )
+{
+
+    //Forward distortion
+    //Rd = 2f sin( atan(Ru/(f*c))/2)
+    
+    //A negative focal length value makes no sense.
+    //if ( FocalLength < 0 ) FocalLength = 0.0;
+    
+    double Rd = R;
+    if ( bForward )
+    {
+        double R1 = atan( R / (FocalLength * cropFactor) )/2.0;
+        R1 = MAX(R1 , -M_PI);
+        R1 = MIN(R1, M_PI );
+        Rd =  2.0 * FocalLength * sin(R1);
+    }
+    else
+    {
+        //Undistort
+        //(f*c)*tan(2.0 * asin(Rd/2f)) = Ru
+        double R1 = R/( 2.0 * FocalLength);
+        R1 = MAX(R1 , -1);
+        R1 = MIN(R1, 1 );
+        
+        double R2 = 2.0 * asin( R1 );
+        R2 = MAX( R2,-M_PI/2.0);
+        R2 = MIN( R2, M_PI/2.0);
+    
+        Rd = (FocalLength * cropFactor) * tan(R2);
+     }
+    
+    return Rd;
+}
+
+static void sfm_fisheye_distort_equisolid(camera_params_t *cam, double FocalLength,
+                                          double *x_u, double *x_d)
+{
+    double xn, yn, r,  rnew;
+
+    if (cam->m_bFisheye == 0) {
+        x_d[0] = x_u[0];
+        x_d[1] = x_u[1];
+        return;
+    }
+    
+    //are the points already centered?
+    
+    xn = x_u[0]; // - cam->f_cx;
+    yn = x_u[1]; // - cam->f_cy;
+    
+    r = sqrt(xn * xn + yn * yn);
+
+    if (( FocalLength > cam->f_focal * 1.5 ) || ( FocalLength < cam->f_focal * 0.6666 ))
+    {
+        printf("**********ALEX:BUGCHECK focal length = %f**********\n", FocalLength );
+    }
+
+    rnew = smf_EquidistantDistortion( r, FocalLength, cam->m_cropFactor, 1  );
+    
+    x_d[0] = xn * (rnew / r) + cam->f_cx;
+    x_d[1] = yn * (rnew / r) + cam->f_cy;
+}
+
+//ALEX: Added a focal length parameter
+void sfm_fisheye_distort(camera_params_t *cam, double FocalLength, double *x_u, double *x_d)
+{
+    
+    if (cam->m_bFisheye == 0) {
+        x_d[0] = x_u[0];
+        x_d[1] = x_u[1];
+        return;
+    }
+    if ( cam->m_nFishEyeModel == 0 )
+    {
+        sfm_fisheye_distort_equidistant(cam, x_u, x_d );
+    }
+    else
+    {
+    
+
+        sfm_fisheye_distort_equisolid(cam, FocalLength, x_u, x_d );
+    }
+}
+
 
 static void sfm_project_point2_fisheye(int j, int i, double *aj, double *bi, 
                                        double *xij, void *adata)
@@ -494,8 +599,105 @@ static void sfm_project_point2_fisheye(int j, int i, double *aj, double *bi,
 		 dt, bi, xij_tmp, globs->explicit_camera_centers);
 
     /* Distort the point */
-    sfm_fisheye_distort(globs->init_params + j, xij_tmp, xij);
+    //ALEX: Added a focal length parameter
+    double FocalLength = (globs->init_params + j)->f_focal;
+    if ( globs->estimate_fisheye_focal )
+    {
+#ifndef TEST_FOCAL
+        FocalLength = aj[ globs->ff_offset ];
+#else
+        FocalLength = aj[ globs->ff_offset ]/ globs->init_params[j].fisheye_scale;
+#endif
+
+        FocalLength = aj[ globs->ff_offset ];
+    }
+    
+    if (( FocalLength > (globs->init_params + j)->f_focal * 1.5 ) || ( FocalLength < (globs->init_params + j)->f_focal * 0.6666 ))
+    {
+        printf("**********ALEX:BUGCHECK focal length = %f**********\n", FocalLength );
+    }
+
+    sfm_fisheye_distort(globs->init_params + j, FocalLength, xij_tmp, xij);
+    static int sample = 1;
+    sample++;
+    if (( sample % 100 ) == 0 )
+    {
+        //printf("incoming = %f %f %f\n", (float)bi[0], (float)bi[1], (float)bi[2]);
+        //printf("projected = %f %f \n",  (float)xij_tmp[0], (float)xij_tmp[1]);
+        //printf("focal = %f\n",f);
+        //printf("FD = %f %f \n",  (float)xij[0], (float)xij[1]);
+        
+    }
+    
 }
+//ALEX: The existing fisheye projection does not account for radial distortion
+static void sfm_project_fisheye_point3(int j, int i, double *aj, double *bi,
+			       double *xij, void *adata)
+{
+    sfm_global_t *globs = (sfm_global_t *) adata;
+
+    double K[9] = 
+	{ 1.0, 0.0, 0.0,
+	  0.0, 1.0, 0.0,
+	  0.0, 0.0, 1.0 };
+
+    double *w, *dt, *k;
+
+    /* Compute intrinsics */
+    if (!globs->est_focal_length) {
+	K[0] = K[4] = globs->init_params[j].f; // globs->global_params.f;
+    } else if (globs->const_focal_length) {
+	printf("Error: case of constant focal length "
+	       "has not been implemented.\n");
+	K[0] = K[4] = globs->global_params.f;
+    } else {
+#ifndef TEST_FOCAL
+	K[0] = K[4] = aj[6];
+#else
+	K[0] = K[4] = aj[6] / globs->init_params[j].f_scale;
+#endif
+    }
+    
+    /* Compute translation, rotation update */
+    dt = aj + 0;
+    w = aj + 3;
+
+    if (globs->est_focal_length)
+        k = aj + 7;
+    else
+        k = aj + 6;
+    
+    if (w[0] != global_last_ws[3 * j + 0] ||
+	w[1] != global_last_ws[3 * j + 1] ||
+	w[2] != global_last_ws[3 * j + 2]) {
+
+	rot_update(globs->init_params[j].R, w, global_last_Rs + 9 * j);
+	global_last_ws[3 * j + 0] = w[0];
+	global_last_ws[3 * j + 1] = w[1];
+	global_last_ws[3 * j + 2] = w[2];
+    }
+    
+    sfm_project_rd(globs->init_params + j, K, k, global_last_Rs + 9 * j, 
+                   dt, bi, xij, globs->estimate_distortion, 
+                   globs->explicit_camera_centers);
+    
+    double FocalLength = (globs->init_params + j)->f_focal;
+    if ( globs->estimate_fisheye_focal )
+    {
+#ifndef TEST_FOCAL
+        FocalLength = aj[ globs->ff_offset ];
+#else
+        FocalLength = aj[ globs->ff_offset ]/ globs->init_params[j].fisheye_scale;
+#endif    
+    }
+
+    if (( FocalLength > (globs->init_params + j)->f_focal * 1.5 ) || ( FocalLength < (globs->init_params + j)->f_focal * 0.6666 ))
+    {
+        printf("**********ALEX:BUGCHECK focal length = %f**********\n", FocalLength );
+    }
+    sfm_fisheye_distort(globs->init_params + j, FocalLength, xij, xij);
+}
+
 
 static void sfm_project_point2_fisheye_mot(int j, int i, double *aj, 
                                            double *xij, void *adata)
@@ -618,6 +820,17 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
 {
     int cnp;
     double *params;
+    
+#ifdef ESTIMATE_FISHEYE
+    int estimate_fisheye = 1;
+#else
+    int estimate_fisheye = 0;
+#endif
+
+    if ( !optimize_for_fisheye )
+    {
+        estimate_fisheye = 0;
+    }
 
 #ifdef SBA_V121
     double opts[6]; // opts[5];
@@ -637,16 +850,24 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
 
     point_constraints_t *point_constraints = NULL;
 
-    const double f_scale = 0.001;
+    double f_scale = 0.001;
+    double fisheye_scale = 5.0;
+    //ALEX: What is the proper value for fisheye?
+    
     const double k_scale = 5.0;
 
+    int f_offset, k_offset, ff_offset;
+    cnp = 6;
     if (est_focal_length)
-	cnp = 7;
-    else
-	cnp = 6;
-
+        cnp = 7;
+    
     if (undistort)
         cnp += 2;
+
+    if (estimate_fisheye )
+        cnp++;
+
+    
 
     num_camera_params = cnp * num_cameras;
     num_pt_params = 3 * num_pts;
@@ -661,35 +882,47 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
 #ifdef TEST_FOCAL
         init_camera_params[j].f_scale = f_scale;
         init_camera_params[j].k_scale = k_scale;
+        init_camera_params[j].fisheye_scale = fisheye_scale;
+
 #else
         init_camera_params[j].f_scale = 1.0;
         init_camera_params[j].k_scale = 1.0;
+        init_camera_params[j].fisheye_scale = 1.0;
 #endif
 
-	/* Translation is zero */
-	params[cnp * j + 0] = init_camera_params[j].t[0]; // 0.0;
-	params[cnp * j + 1] = init_camera_params[j].t[1]; // 0.0;
-	params[cnp * j + 2] = init_camera_params[j].t[2]; // 0.0;
-	
-	/* Rotation is zero */
-	params[cnp * j + 3] = 0.0;
-	params[cnp * j + 4] = 0.0;
-	params[cnp * j + 5] = 0.0;
+        /* Translation is zero */
+        params[cnp * j + 0] = init_camera_params[j].t[0]; // 0.0;
+        params[cnp * j + 1] = init_camera_params[j].t[1]; // 0.0;
+        params[cnp * j + 2] = init_camera_params[j].t[2]; // 0.0;
+        
+        /* Rotation is zero */
+        params[cnp * j + 3] = 0.0;
+        params[cnp * j + 4] = 0.0;
+        params[cnp * j + 5] = 0.0;
 
-	if (est_focal_length) {
+        f_offset = 6;
+        k_offset = 6;
+        ff_offset = 6;
+        if (est_focal_length)
+        {
 	    /* Focal length is initial estimate */
 #ifndef TEST_FOCAL
-	    params[cnp * j + 6] = init_camera_params[j].f;
+            params[cnp * j + 6] = init_camera_params[j].f;
 #else
-	    params[cnp * j + 6] = 
+            params[cnp * j + 6] =
                 init_camera_params[j].f * init_camera_params[j].f_scale;
 #endif
             c = 7;
-	} else {
+            k_offset = 7;
+            ff_offset = 7;
+        }
+        else
+        {
             c = 6;
         }
         
-        if (undistort) {
+        if (undistort)
+        {
 #ifndef TEST_FOCAL
             params[cnp * j + c] = init_camera_params[j].k[0];
             params[cnp * j + c+1] = init_camera_params[j].k[1];
@@ -697,6 +930,17 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
             double scale = init_camera_params[j].k_scale;
             params[cnp * j + c] = init_camera_params[j].k[0] * scale;
             params[cnp * j + c+1] = init_camera_params[j].k[1] * scale;
+#endif
+            ff_offset = c+2;
+        }
+        
+        if (estimate_fisheye )
+        {
+#ifndef TEST_FOCAL
+            params[cnp * j + c+2] = init_camera_params[j].f_focal;
+#else
+            double scale = init_camera_params[j].fisheye_scale;
+            params[cnp * j + c+2] = init_camera_params[j].f_focal * scale;
 #endif
         }
     }
@@ -755,6 +999,13 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
                 constraints[i].constraints[8] *= k_scale;
                 constraints[i].weights[8] *= (1.0 / (k_scale * k_scale));
             }
+        
+            if (estimate_fisheye )
+            {
+               constraints[i].constraints[10] *= fisheye_scale;
+               constraints[i].weights[10] *= (1.0 / (fisheye_scale * fisheye_scale));
+            
+            }
 #endif
 	}
     }
@@ -794,9 +1045,16 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
     global_params.est_focal_length = est_focal_length;
     global_params.const_focal_length = const_focal_length;
     global_params.estimate_distortion = undistort;
-    global_params.explicit_camera_centers = explicit_camera_centers,
+    global_params.explicit_camera_centers = explicit_camera_centers;
+    //ALEX:Added a global param for estimating fisheye focal
+    //The fisheye focal length might be separate from the camera focal length
+    global_params.estimate_fisheye_focal = estimate_fisheye;
+    //ALEX:  Make it easier to index into the parameters
+    global_params.f_offset = f_offset;
+    global_params.k_offset = k_offset;
+    global_params.ff_offset = ff_offset;
     
-    global_params.global_params.f = 1.0;
+    global_params.global_params.f = 1.0;  //ALEX: Why is f == 1?
     global_params.init_params = init_camera_params;
 
     global_last_ws = 
@@ -835,7 +1093,7 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
         } else {
             sba_motstr_levmar(num_pts, num_cameras, ncons, 
                               vmask, params, cnp, 3, projections, NULL, 2,
-                              sfm_project_point2_fisheye, NULL, 
+                              sfm_project_fisheye_point3, NULL,
                               (void *) (&global_params),
                               MAX_ITERS, VERBOSITY, opts, info,
                               use_constraints, constraints,
@@ -920,10 +1178,21 @@ void run_sfm(int num_pts, int num_cameras, int ncons,
             init_camera_params[j].k[1] = params[cnp * j + c+1] / scale;
 #endif
         }
+        
+        if (estimate_fisheye) {
+#ifndef TEST_FOCAL
+            init_camera_params[j].f_focal = params[cnp * j + ff_offset];
+#else
+            double scale = init_camera_params[j].fisheye_scale;
+            init_camera_params[j].f_focal = params[cnp * j + ff_offset] / scale;
+#endif
+        }
+
 
 #ifdef TEST_FOCAL
         init_camera_params[j].f_scale = 1.0;
         init_camera_params[j].k_scale = 1.0;
+        init_camera_params[j].fisheye_scale = 1.0;
 #endif
     }
 
@@ -1115,7 +1384,7 @@ void camera_refine(int num_points, v3_t *points, v2_t *projs,
 	globs.explicit_camera_centers = 1;
 	globs.global_params.f = params->f;
 	globs.init_params = params;
-        globs.estimate_distortion = estimate_distortion;
+    globs.estimate_distortion = estimate_distortion;
 
 	global_num_points = num_points;
 	global_params = &globs;
@@ -1174,7 +1443,7 @@ void camera_refine(int num_points, v3_t *points, v2_t *projs,
 	globs.explicit_camera_centers = 1;
 	globs.global_params.f = params->f;
 	globs.init_params = params;
-        globs.estimate_distortion = estimate_distortion;
+    globs.estimate_distortion = estimate_distortion;
 
 	global_num_points = num_points;
 	global_params = &globs;

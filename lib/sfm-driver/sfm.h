@@ -41,13 +41,17 @@ typedef struct {
     double K_known[9];  /* Intrinsics (if known) */
     double k_known[5];  /* Distortion params (if known) */
 
-    char fisheye;            /* Is this a fisheye image? */
+    char m_bFisheye;            /* Is this a fisheye image? */
+    int  m_nFishEyeModel;    /* What model to use? */
+   
     char known_intrinsics;   /* Are the intrinsics known? */
     double f_cx, f_cy;       /* Fisheye center */
     double f_rad, f_angle;   /* Other fisheye parameters */
     double f_focal;          /* Fisheye focal length */
+    double m_cropFactor;     /* How much image scaling? */
 
-    double f_scale, k_scale; /* Scale on focal length, distortion params */
+
+    double f_scale, k_scale, fisheye_scale; /* Scale on focal length, distortion params */
 } camera_params_t;
 
 /* Compute an updated rotation matrix given the initial rotation (R)
@@ -61,6 +65,12 @@ void sfm_project(camera_params_t *init, double *K,
 void sfm_project_rd(camera_params_t *init, double *K, double *k,
                     double *R, double *dt, double *b, double *p,
                     int undistort, int explicit_camera_centers);
+
+void sfm_project2(camera_params_t *init, double f,
+                  double *R, double *dt, double *b, double *p,
+                  int explicit_camera_centers);
+void sfm_fisheye_distort(camera_params_t *cam, double FocalLength, double *x_u, double *x_d);
+
 
 v2_t sfm_project_final(camera_params_t *params, v3_t pt,
 		       int explicit_camera_centers, int undistort);

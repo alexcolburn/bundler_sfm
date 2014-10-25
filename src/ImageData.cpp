@@ -859,8 +859,9 @@ void ImageData::LoadKeys(bool descriptor, bool undistort) {
         m_keys_desc_loaded = true;            
     }
     
-    if (undistort)
-        UndistortKeys();
+    //ALEX:  Never do this, always use Undistort Copy
+    //if (undistort)
+    //    UndistortKeys();
 #else
     printf("Cannot load keys in demo version\n");
 #endif
@@ -1125,6 +1126,7 @@ void ImageData::FromNDC(double x_n, double y_n, double &x, double &y) {
     y = y_n * size2;
 }
 
+/*
 void ImageData::DistortPoint(double x, double y, 
                              double &x_out, double &y_out) const
 {
@@ -1132,6 +1134,60 @@ void ImageData::DistortPoint(double x, double y,
     GetRotationFromSpherical(-0.5 * M_PI, 0.5 * M_PI, I);
     
     DistortPoint(x, y, I, x_out, y_out);
+}
+*/
+
+
+void ImageData::DistortPoint(double FocalLength,double x, double y, double &x_out, double &y_out) const
+{
+
+
+    double I[9];
+    GetRotationFromSpherical(-0.5 * M_PI, 0.5 * M_PI, I);
+    
+    DistortPoint(FocalLength,x, y, I, x_out, y_out);
+}
+
+
+double ImageData::EquidistantDistortion( double R, double FocalLength, double cropFactor, bool bForward ) const
+{
+
+
+    #ifndef ADJUSTABLE_FISHEYE
+    if ( fabs(FocalLength - m_fFocal) > 0.001)
+    {
+        printf("BUGBUG: Fisheye Focal has Changed\n");
+    }
+    
+    #endif
+    if (( FocalLength > m_fFocal * 1.5 ) || ( FocalLength < m_fFocal * 0.6666 ))
+    {
+        printf("**********ALEX:BUGCHECK focal length = %f**********\n", FocalLength );
+    }
+
+
+    //Forward distortion
+    //Rd = 2f sin( atan(Ru/(f*c))/2)
+    
+    double Rd = R;
+    if ( bForward )
+    {
+        double R1 = atan( R / (FocalLength * cropFactor) )/2.0;
+        R1 = MAX(R1 , -M_PI);
+        R1 = MIN(R1, M_PI );
+        Rd =  2.0 * FocalLength * sin(R1);
+    }
+    else
+    {
+        //Undistort
+        //(f*c)*tan(2.0 * asin(Rd/2f)) = Ru
+        double R1 = R/( 2.0 * FocalLength);
+        R1 = MAX(R1 , -1);
+        R1 = MIN(R1, 1 );
+        Rd = (FocalLength * cropFactor) * tan(2.0 * asin(R1));
+     }
+    
+    return Rd;
 }
 
 void ImageData::DistortPoint(double x, double y, double *R,
@@ -1144,8 +1200,24 @@ void ImageData::DistortPoint(double x, double y, double *R,
 	return;
     }
 
-    double xn = x; // - m_fCx;
-    double yn = y; // - m_fCy;
+    DistortPoint(m_fFocal,  x, y, R, x_out, y_out);
+}
+
+void ImageData::DistortPoint(double FocalLength, double x, double y, double *R,
+			     double &x_out, double &y_out) const
+{
+    if (!m_fisheye) {
+	// DistortPointRD(x, y, x_out, y_out);
+	x_out = x;
+	y_out = y;
+	return;
+    }
+
+
+    
+    
+    double xn = x; 
+    double yn = y; 
 
     double ray[3] = { xn, yn, -m_fFocal }, ray_rot[3];
     matrix_product(3, 3, 3, 1, R, ray, ray_rot);
@@ -1160,17 +1232,28 @@ void ImageData::DistortPoint(double x, double y, double *R,
     }
     
     double r = sqrt(xn * xn + yn * yn);
-    double angle = RAD2DEG(atan(r / m_fFocal));
-    double rnew = m_fRad * angle / (0.5 * m_fAngle);
     
+    double rnew = r;
+    if ( m_nFishEyeModel == 0 )
+    {
+        double angle = RAD2DEG(atan(r / m_fFocal));
+        rnew = m_fRad * angle / (0.5 * m_fAngle);
+    }
+    else
+    {
+        rnew = EquidistantDistortion( r, FocalLength, m_cropFactor );
+        
+    }
     x_out = xn * (rnew / r) + m_fCx;
     y_out = yn * (rnew / r) + m_fCy;
 }
 
-void ImageData::UndistortPoint(double x, double y, 
+
+
+void ImageData::UndistortPoint(double FocalLength, double x, double y,
 			       double &x_out, double &y_out) const
 {
-    if (!m_fisheye) {
+if (!m_fisheye) {
 	// UndistortPointRD(x, y, x_out, y_out);
 
 	x_out = x;
@@ -1179,17 +1262,35 @@ void ImageData::UndistortPoint(double x, double y,
 	return;
     }
 
+    
+    
     double xn = x - m_fCx;
     double yn = y - m_fCy;
     
     double r = sqrt(xn * xn + yn * yn);
-    double angle = 0.5 * m_fAngle * (r / m_fRad);
-    double rnew = m_fFocal * tan(DEG2RAD(angle));
+    double rnew = r;
+    if ( m_nFishEyeModel == 0 )
+    {
+        double angle = 0.5 * m_fAngle * (r / m_fRad);
+        rnew = m_fFocal * tan(DEG2RAD(angle));
+    }
+    else
+    {
+        rnew = EquidistantDistortion( r, FocalLength, m_cropFactor, false );
+    }
     
     x_out = xn * (rnew / r); // + m_fCx;
     y_out = yn * (rnew / r); // + m_fCy;
 }
 
+/*
+void ImageData::UndistortPoint(double x, double y, double &x_out, double &y_out) const
+{
+    UndistortPoint( m_fFocal, x,y,x_out,y_out);
+}
+*/
+
+    
 /* Create a pinhole view for the keys */
 void ImageData::UndistortKeys() {
     if (!m_fisheye)
@@ -1204,7 +1305,7 @@ void ImageData::UndistortKeys() {
 	double y = m_keys[i].m_y;
 	double x_new, y_new;
 
-	UndistortPoint(x, y, x_new, y_new);
+	UndistortPoint(m_fFocal, x, y, x_new, y_new);
 	
 	m_keys[i].m_x = x_new;
 	m_keys[i].m_y = y_new;
@@ -1227,7 +1328,7 @@ std::vector<Keypoint> ImageData::UndistortKeysCopy() {
 	double y = m_keys[i].m_y;
 	double x_new, y_new;
 
-	UndistortPoint(x, y, x_new, y_new);
+	UndistortPoint(m_fFocal, x, y, x_new, y_new);
 
 	keys_new[i].m_x = x_new;
 	keys_new[i].m_y = y_new;        
@@ -1891,8 +1992,10 @@ void ImageData::ReadKeyColors()
 	double y = m_keys[i].m_y;
 
 	double x_d, y_d;
-	DistortPoint(x, y, ident, x_d, y_d);
-
+    //ALEX:  If the image is already a fisheye, so are the keys?  why distort?
+    //       Distort only works on fisheye so don't bother
+    // DistortPoint(x, y, ident, x_d, y_d);
+    
 	fcolor_t col;
 	col = pixel_lerp(m_img, x_d + 0.5 * w, y_d + 0.5 * h);
 
