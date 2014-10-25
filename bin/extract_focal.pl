@@ -15,7 +15,7 @@ chomp($OS);
 if ($OS eq "Cygwin") {
     $JHEAD_EXE = "$BIN_PATH/jhead.exe";
 } else {
-    $JHEAD_EXE = "$BIN_PATH/jhead";
+    $JHEAD_EXE = "jhead";
 }
 
 $OUT_DIR = "./prepare";
@@ -181,6 +181,7 @@ $SCALE=1.0;
      "NIKON CORPORATION NIKON D70"      => 23.7,
      "NIKON CORPORATION NIKON D70s"     => 23.7,
      "NIKON CORPORATION NIKON D80"      => 23.6,
+     "NIKON CORPORATION NIKON D810"     => 35.95,
      "NIKON E2500"                      => 5.27,   # 1/2.7"
      "NIKON E2500"                      => 5.27,   # 1/2.7"
      "NIKON E3100"                      => 5.27,   # 1/2.7"
@@ -291,6 +292,7 @@ $SCALE=1.0;
      "SONY DSC-W5"                      => 7.176,  # 1/1.8"
      "SONY DSC-W7"                      => 7.176,  # 1/1.8"
      "SONY DSC-W80"                     => 5.75,   # 1/2.5"
+     "Basler Ace"                     => 11.26,   # 1/2.5"
 );
 
 `mkdir $OUT_DIR`;

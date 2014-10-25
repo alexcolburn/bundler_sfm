@@ -23,7 +23,7 @@ endif
 INCLUDE_PATH=-I../lib/imagelib -I../lib/sfm-driver -I../lib/matrix	\
 	-I../lib/5point -I../lib/sba-1.5 -I../lib/ann_1.1_char/include
 
-LIB_PATH=-L../lib -L../lib/ann_1.1_char/lib
+LIB_PATH=-L../lib -L../lib/ann_1.1_char/lib  -L/usr/local//Cellar/gcc/4.9.1/lib/gcc/x86_64-apple-darwin13.3.0/4.9.1/
 
 CPPFLAGS=$(OPTFLAGS) $(OTHERFLAGS) $(INCLUDE_PATH) $(DEFINES)
 

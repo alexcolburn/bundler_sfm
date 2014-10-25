@@ -62,7 +62,7 @@ rm -f sift.txt
 $TO_SIFT $IMAGE_DIR > sift.txt 
 
 # Execute the SIFT commands
-sh sift.txt
+#sh sift.txt
 
 # Match images (can take a while)
 echo "[- Matching keypoints (this can take a while) -]"
